@@ -9,7 +9,8 @@ import numpy as np
 from src.features.feature_extractor import extract_features
 
 # Load models once when module is imported
-BASE_DIR = os.path.join(os.path.dirname(__file__), '../../models')
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../models')
+print(f"Looking for models in: {BASE_DIR}")
 
 def load_model(model_name):
     path = os.path.join(BASE_DIR, f"{model_name}.pkl")
