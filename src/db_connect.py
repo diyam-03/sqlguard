@@ -1,6 +1,14 @@
 import psycopg2
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def get_connection():
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        return psycopg2.connect(database_url)
+    # Fallback to local
     return psycopg2.connect(
         dbname="sqlguard_db",
         user="diyamehta",
@@ -13,11 +21,7 @@ def test_connection():
     try:
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public';
-        """)
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
         tables = cur.fetchall()
         print("✅ Connected! Tables found:")
         for t in tables:
@@ -29,4 +33,3 @@ def test_connection():
 
 if __name__ == "__main__":
     test_connection()
-    
