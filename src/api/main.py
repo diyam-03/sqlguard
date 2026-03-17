@@ -1,15 +1,24 @@
-from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, List
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
+from datetime import datetime, timedelta
+from typing import Optional, List
+
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
+import psycopg2.extras
+
 from src.ml.inference import predict
 from src.db_connect import get_connection
-import psycopg2.extras
-from datetime import datetime
+from src.api.auth import (
+    Token, UserRegister, UserLogin,
+    hash_password, verify_password,
+    create_access_token, get_current_user,
+    ACCESS_TOKEN_EXPIRE_MINUTES
+)
 
 app = FastAPI(
     title="SQLGuard API",
@@ -17,7 +26,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Allow React frontend to call this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -58,22 +66,68 @@ def root():
         "description": "DBMS-Native SQL Injection Detection System"
     }
 
+# ─── AUTH ENDPOINTS ───
+
+@app.post("/auth/register")
+def register(user: UserRegister):
+    """Register a new user."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM users WHERE username = %s", (user.username,))
+    if cur.fetchone():
+        raise HTTPException(status_code=400, detail="Username already exists")
+    hashed = hash_password(user.password)
+    cur.execute("""
+        INSERT INTO users (username, password_hash, role, ip_address)
+        VALUES (%s, %s, %s, %s)
+        RETURNING user_id
+    """, (user.username, hashed, user.role, user.ip_address))
+    user_id = cur.fetchone()[0]
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"message": "User registered successfully", "user_id": user_id}
+
+@app.post("/auth/login", response_model=Token)
+def login(user: UserLogin):
+    """Login and get JWT token."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT user_id, username, password_hash, role, is_active 
+        FROM users WHERE username = %s
+    """, (user.username,))
+    db_user = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    user_id, username, password_hash, role, is_active = db_user
+    if not password_hash or not verify_password(user.password, password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    if not is_active:
+        raise HTTPException(status_code=400, detail="Account is disabled")
+    access_token = create_access_token(
+        data={"sub": username, "user_id": user_id, "role": role},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
 # ─── DETECTION ENDPOINT ───
 
 @app.post("/detect")
-def detect_injection(query_input: QueryInput):
+def detect_injection(
+    query_input: QueryInput,
+    current_user: tuple = Depends(get_current_user)
+):
     """
     Main detection endpoint.
-    Submits a SQL query for injection analysis.
-    Returns verdict, confidence, risk level and latency.
+    Requires authentication.
     """
     result = predict(query_input.sql_query)
-    
     conn = get_connection()
     cur = conn.cursor()
-    
     try:
-        # Save raw query
         cur.execute("""
             INSERT INTO raw_query 
             (user_id, raw_sql_text, query_type, session_id, db_name)
@@ -88,7 +142,6 @@ def detect_injection(query_input: QueryInput):
         ))
         query_id = cur.fetchone()[0]
 
-        # Save features
         features = result['features']
         cur.execute("""
             INSERT INTO ast_features
@@ -111,7 +164,6 @@ def detect_injection(query_input: QueryInput):
         ))
         feature_id = cur.fetchone()[0]
 
-        # Save prediction
         cur.execute("""
             INSERT INTO ml_prediction
             (feature_id, model_id, is_malicious, confidence_score,
@@ -119,8 +171,7 @@ def detect_injection(query_input: QueryInput):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING prediction_id
         """, (
-            feature_id,
-            1,
+            feature_id, 1,
             result['is_malicious'],
             result['confidence'],
             result['risk_level'],
@@ -129,7 +180,6 @@ def detect_injection(query_input: QueryInput):
         ))
         prediction_id = cur.fetchone()[0]
 
-        # Save alert if malicious
         if result['is_malicious']:
             cur.execute("""
                 INSERT INTO alert_log
@@ -208,9 +258,8 @@ def update_query(query_id: int, session_id: str):
     """Update query session ID."""
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-        UPDATE raw_query SET session_id = %s WHERE query_id = %s
-    """, (session_id, query_id))
+    cur.execute("UPDATE raw_query SET session_id = %s WHERE query_id = %s",
+                (session_id, query_id))
     conn.commit()
     cur.close()
     conn.close()
@@ -275,20 +324,14 @@ def update_user(user_id: int, user: UserUpdate):
     conn = get_connection()
     cur = conn.cursor()
     if user.username:
-        cur.execute(
-            "UPDATE users SET username = %s WHERE user_id = %s",
-            (user.username, user_id)
-        )
+        cur.execute("UPDATE users SET username = %s WHERE user_id = %s",
+                    (user.username, user_id))
     if user.role:
-        cur.execute(
-            "UPDATE users SET role = %s WHERE user_id = %s",
-            (user.role, user_id)
-        )
+        cur.execute("UPDATE users SET role = %s WHERE user_id = %s",
+                    (user.role, user_id))
     if user.is_active is not None:
-        cur.execute(
-            "UPDATE users SET is_active = %s WHERE user_id = %s",
-            (user.is_active, user_id)
-        )
+        cur.execute("UPDATE users SET is_active = %s WHERE user_id = %s",
+                    (user.is_active, user_id))
     conn.commit()
     cur.close()
     conn.close()
@@ -341,36 +384,23 @@ def resolve_alert(alert_id: int, update: AlertUpdate):
     conn.close()
     return {"message": "Alert updated", "alert_id": alert_id}
 
-# ─── STATS FOR DASHBOARD ───
+# ─── STATS ───
 
 @app.get("/stats")
 def get_stats():
     """Dashboard statistics."""
     conn = get_connection()
     cur = conn.cursor()
-
     cur.execute("SELECT COUNT(*) FROM raw_query")
     total_queries = cur.fetchone()[0]
-
-    cur.execute("""
-        SELECT COUNT(*) FROM ml_prediction WHERE is_malicious = true
-    """)
+    cur.execute("SELECT COUNT(*) FROM ml_prediction WHERE is_malicious = true")
     total_blocked = cur.fetchone()[0]
-
-    cur.execute("""
-        SELECT AVG(confidence_score) FROM ml_prediction 
-        WHERE is_malicious = true
-    """)
+    cur.execute("SELECT AVG(confidence_score) FROM ml_prediction WHERE is_malicious = true")
     avg_confidence = cur.fetchone()[0] or 0
-
-    cur.execute("""
-        SELECT AVG(latency_ms) FROM ml_prediction
-    """)
+    cur.execute("SELECT AVG(latency_ms) FROM ml_prediction")
     avg_latency = cur.fetchone()[0] or 0
-
     cur.close()
     conn.close()
-
     return {
         "total_queries": total_queries,
         "total_blocked": total_blocked,
@@ -382,7 +412,7 @@ def get_stats():
 
 @app.get("/stats/trends")
 def get_trends():
-    """Attack trends over time for line chart."""
+    """Attack trends over time."""
     conn = get_connection()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("""
@@ -404,13 +434,11 @@ def get_trends():
 
 @app.get("/stats/distribution")
 def get_distribution():
-    """Attack type distribution for donut chart."""
+    """Attack type distribution."""
     conn = get_connection()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("""
-        SELECT 
-            p.risk_level,
-            COUNT(*) as count
+        SELECT p.risk_level, COUNT(*) as count
         FROM ml_prediction p
         WHERE p.is_malicious = true
         GROUP BY p.risk_level
