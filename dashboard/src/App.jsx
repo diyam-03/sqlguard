@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import Login from './pages/login';
+import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/dashboard';
-import Detect from './pages/detect';
+import Dashboard from './pages/Dashboard';
+import Detect from './pages/Detect';
 import Queries from './pages/Queries';
 import Alerts from './pages/Alerts';
 import Adversarial from './pages/Adversarial';
