@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Detect from './pages/Detect';
+import Login from './pages/login';
+import Dashboard from './pages/dashboard';
+import Detect from './pages/detect';
 import Queries from './pages/Queries';
 import Alerts from './pages/Alerts';
 import Adversarial from './pages/Adversarial';
