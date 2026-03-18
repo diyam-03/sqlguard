@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { login } from '../api';
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, onSwitch }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -24,27 +24,31 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-logo">
-          <span>🛡️</span>
-          SQL<span>Guard</span>
-        </div>
+        <div className="login-logo">SQL<span>Guard</span></div>
         <p className="login-sub">DBMS-Native SQL Injection Detection System</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Username</label>
             <input className="form-input" type="text" value={username}
-              onChange={e => setUsername(e.target.value)} placeholder="Enter username" required />
+              onChange={e => setUsername(e.target.value)}
+              placeholder="Enter username" required />
           </div>
           <div className="form-group">
             <label className="form-label">Password</label>
             <input className="form-input" type="password" value={password}
-              onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••" required />
           </div>
           <button className="login-btn" type="submit" disabled={loading}>
             {loading ? 'Authenticating...' : 'Access Dashboard'}
           </button>
           {error && <p className="error-msg">{error}</p>}
         </form>
+        <p style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: 'var(--text-muted)' }}>
+          Don't have an account?{' '}
+          <span style={{ color: 'var(--accent-blue)', cursor: 'pointer' }}
+            onClick={onSwitch}>Create one</span>
+        </p>
       </div>
     </div>
   );
