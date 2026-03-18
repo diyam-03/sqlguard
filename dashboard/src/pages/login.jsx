@@ -14,7 +14,7 @@ export default function Login({ onLogin }) {
     try {
       const res = await login(username, password);
       onLogin(res.data.access_token);
-    } catch (err) {
+    } catch {
       setError('Invalid username or password');
     } finally {
       setLoading(false);
@@ -24,30 +24,21 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1 className="login-title">SQL<span>Guard</span></h1>
-        <p className="login-sub">DBMS-Native Injection Detection System</p>
+        <div className="login-logo">
+          <span>🛡️</span>
+          SQL<span>Guard</span>
+        </div>
+        <p className="login-sub">DBMS-Native SQL Injection Detection System</p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Username</label>
-            <input
-              className="form-input"
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="Enter username"
-              required
-            />
+            <input className="form-input" type="text" value={username}
+              onChange={e => setUsername(e.target.value)} placeholder="Enter username" required />
           </div>
           <div className="form-group">
             <label className="form-label">Password</label>
-            <input
-              className="form-input"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Enter password"
-              required
-            />
+            <input className="form-input" type="password" value={password}
+              onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
           </div>
           <button className="login-btn" type="submit" disabled={loading}>
             {loading ? 'Authenticating...' : 'Access Dashboard'}

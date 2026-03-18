@@ -1,94 +1,87 @@
 import { useState, useEffect } from 'react';
-import Login from './pages/login';
-import Dashboard from './pages/dashboard';
-import Detect from './pages/detect';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Detect from './pages/Detect';
 import Queries from './pages/Queries';
 import Alerts from './pages/Alerts';
+import Adversarial from './pages/Adversarial';
 
-function Sidebar({ activePage, setActivePage, onLogout }) {
-  const navItems = [
-    { id: 'dashboard', icon: '◈', label: 'Dashboard' },
-    { id: 'detect', icon: '⬡', label: 'Detect Query' },
-    { id: 'queries', icon: '≡', label: 'Query Log' },
-    { id: 'alerts', icon: '⚠', label: 'Alerts' },
-  ];
+const NAV = [
+  { id: 'dashboard', icon: '◈', label: 'Overview' },
+  { id: 'detect', icon: '⬡', label: 'Detect' },
+  { id: 'queries', icon: '≡', label: 'Query Log' },
+  { id: 'alerts', icon: '⚠', label: 'Alerts' },
+  { id: 'adversarial', icon: '⚔', label: 'Benchmark' },
+];
 
+function Clock() {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
   return (
-    <aside className="sidebar">
-      <div className="sidebar-logo">
-        <h1>SQL<span>Guard</span></h1>
-        <p>Security Monitor v1.0</p>
+    <span className="navbar-time">
+      {time.toLocaleTimeString('en-GB')}
+    </span>
+  );
+}
+
+function Navbar({ active, setActive, onLogout }) {
+  return (
+    <nav className="navbar">
+      <div className="navbar-left">
+        <div className="navbar-logo">
+          <div className="navbar-logo-dot"></div>
+          SQL<span>Guard</span>
+        </div>
+        <div className="navbar-nav">
+          {NAV.map(n => (
+            <button
+              key={n.id}
+              className={`nav-item ${active === n.id ? 'active' : ''}`}
+              onClick={() => setActive(n.id)}
+            >
+              <span className="nav-icon">{n.icon}</span>
+              {n.label}
+            </button>
+          ))}
+        </div>
       </div>
-      <nav className="sidebar-nav">
-        {navItems.map(item => (
-          <button
-            key={item.id}
-            className={`nav-item ${activePage === item.id ? 'active' : ''}`}
-            onClick={() => setActivePage(item.id)}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            {item.label}
-          </button>
-        ))}
-      </nav>
-      <div className="sidebar-status">
-        <div className="status-dot">System Active</div>
-        <button
-          onClick={onLogout}
-          style={{
-            marginTop: '12px',
-            width: '100%',
-            padding: '8px',
-            background: 'transparent',
-            border: '1px solid var(--border)',
-            borderRadius: '6px',
-            color: 'var(--text-muted)',
-            fontSize: '11px',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          Logout
-        </button>
+      <div className="navbar-right">
+        <div className="navbar-status">
+          <div className="status-dot"></div>
+          System Active
+        </div>
+        <Clock />
+        <button className="logout-btn" onClick={onLogout}>Logout</button>
       </div>
-    </aside>
+    </nav>
   );
 }
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
-  const [activePage, setActivePage] = useState('dashboard');
+  const [active, setActive] = useState('dashboard');
 
-  const handleLogin = (newToken) => {
-    localStorage.setItem('token', newToken);
-    setToken(newToken);
-  };
+  const handleLogin = (t) => { localStorage.setItem('token', t); setToken(t); };
+  const handleLogout = () => { localStorage.removeItem('token'); setToken(null); };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-  };
-
-  if (!token) {
-    return <Login onLogin={handleLogin} />;
-  }
+  if (!token) return <Login onLogin={handleLogin} />;
 
   const pages = {
     dashboard: <Dashboard />,
     detect: <Detect />,
     queries: <Queries />,
     alerts: <Alerts />,
+    adversarial: <Adversarial />,
   };
 
   return (
     <div className="app">
-      <Sidebar
-        activePage={activePage}
-        setActivePage={setActivePage}
-        onLogout={handleLogout}
-      />
+      <Navbar active={active} setActive={setActive} onLogout={handleLogout} />
       <main className="main">
-        {pages[activePage]}
+        {pages[active]}
       </main>
     </div>
   );
