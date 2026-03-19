@@ -14,7 +14,7 @@ from src.db_connect import get_connection
 # Secret key — change this in production
 SECRET_KEY = "sqlguard_secret_key_2025_change_in_production"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 365  # 1 year
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
